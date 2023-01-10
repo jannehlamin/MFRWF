@@ -1,11 +1,13 @@
 import argparse
 import os
 import numpy as np
+from fvcore.nn import FlopCountAnalysis
 from tqdm import tqdm
 import torch
 from dataloaders.data_util import make_data_loader_nostream
 from models.backbone.extensions.sync_batchnorm import patch_replication_callback
 from models.backbone.utils_1.utils import FullModel_nostream
+from models.model_size import SizeEstimator
 from models.nets.hybrid_ocr_nostream import OHybridCR
 from mypath import Path
 from datetime import datetime
@@ -40,9 +42,20 @@ class Trainer(object):
             torch.distributed.init_process_group(
                 backend="nccl", init_method="env://",
             )
-
+        from pytorch_memlab import MemReporter
+        inputs = torch.randn(1, 3, 512, 512).cuda()
         model = OHybridCR(args, self.nclass, backbone=args.backbone).cuda()
-        # optimizer
+        flops = FlopCountAnalysis(model, inputs)
+        print()
+        print("Total: ", flops.total())
+        reporter = MemReporter(model)
+        reporter.report()
+        out = model(inputs)[0].mean()
+        out.backward()
+        print("@"*100)
+        reporter.report()
+
+
         params_dict = dict(model.named_parameters())
         params = [{'params': list(params_dict.values()), 'lr': args.lr}]
         optimizer = torch.optim.SGD(params, lr=args.lr, momentum=0.9,
@@ -66,8 +79,8 @@ class Trainer(object):
             mode=args.loss_type)
         # if args.backbone == "hrnet":
         model = FullModel_nostream(model, self.criterion).cuda()
-        from torchinfo import summary
-        summary(model)
+        # from torchinfo import summary
+        # summary(model)
         self.model, self.optimizer = model, optimizer
 
         # Define lr scheduler
@@ -116,6 +129,7 @@ class Trainer(object):
             self.optimizer.zero_grad()
 
             loss, output = self.model(image, target)
+
             loss = loss.mean()
             loss.backward()
             self.optimizer.step()
@@ -226,7 +240,7 @@ class Trainer(object):
 def main(lr):
     parser = argparse.ArgumentParser(description='Train segmentation network')
     parser.add_argument('--backbone', type=str, default='ours_l34rw_fully', choices=['baseline','ours_l34rw_partial_weight', 'ours_l34rw_fully',
-                'ours_l34rw_partial_cwffd', 'ours_r34rw_fully', 'ours_r50rw_fully','ours_l34rw_partial_decoder'], help='Backone name (default: hrnet)')
+                'ours_l34rw_partial_cwffd', 'ours_r34rw_fully', 'ours_r50rw_fully', 'ours_l34rw_partial_decoder'], help='Backone name (default: hrnet)')
     parser.add_argument('--local_rank', type=int, default=-1)
     parser.add_argument('--mstream', type=str, default='yes', choices=['yes', 'no'], help='loss func type (default: yes )'),
     parser.add_argument('--r2n', type=str, default='no', choices=['yes', 'no'], help='loss func type (default: ce)')
@@ -239,9 +253,9 @@ def main(lr):
                         help='whether to use SBD dataset (default: True)')
     parser.add_argument('--workers', type=int, default=4,
                         metavar='N', help='dataloader threads')
-    parser.add_argument('--base-size', type=int, default=64,
+    parser.add_argument('--base-size', type=int, default=4,
                         help='base image size')
-    parser.add_argument('--crop-size', type=int, default=64,
+    parser.add_argument('--crop-size', type=int, default=4,
                         help='crop image size')
     parser.add_argument('--sync-bn', type=bool, default=True,
                         help='whether to use sync bn (default: auto)')
@@ -354,8 +368,8 @@ def main(lr):
             v_loss, v_metric = trainer.validation(epoch)
             val.append(v_metric)
     # train and val metrics
-    # trainer.log_experimental_Data(str(args.dataset)+str(datetime.now().time())+"_train.txt", train)
-    # trainer.log_experimental_Data(str(args.dataset)+str(datetime.now().time())+"_val.txt", val)
+    trainer.log_experimental_Data(str(args.dataset)+str(datetime.now().time())+"_train.txt", train)
+    trainer.log_experimental_Data(str(args.dataset)+str(datetime.now().time())+"_val.txt", val)
 
     trainer.writer.close()
     return args
@@ -370,5 +384,5 @@ if __name__ == "__main__":
         directory = ROOT_DIR + "/experiments/"
         print("End......", lrs[i])
         print("Processing the best model for lr=", i, ".............")
-        os.rename(directory + "bweeds", directory + str(i) + "_bweeds_ours_baseline")
+        os.rename(directory + "rweeds", directory + str(i) + "test_ours")
 

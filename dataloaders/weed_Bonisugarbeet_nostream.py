@@ -2,7 +2,6 @@ import os
 import torch.utils.data as data
 from PIL import ImageFile, Image, ImageOps
 from dataloaders.data_util.utils import decode_segmap, get_weeds
-
 from mypath import Path
 from dataloaders.data_util import custom_transforms_no_stream as tr
 from torchvision import transforms

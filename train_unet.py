@@ -6,9 +6,10 @@ from tqdm import tqdm
 import torch
 import warnings
 
-from models.nets.Unet import UNET
+# from models.nets.deeplab_resnet import DeepLabv3_plus
+from models.nets.MUnet import MUNET
 from models.backbone.extensions.sync_batchnorm import patch_replication_callback
-from dataloaders.data_util import make_data_loader
+from dataloaders.data_util import make_data_loader_nostream
 from loss_functions.calculate_weights import calculate_weigths_labels
 from loss_functions.loss import SegmentationLosses
 from loss_functions.lr_scheduler import LR_Scheduler
@@ -17,7 +18,8 @@ from loss_functions.saver import Saver
 from loss_functions.summaries import TensorboardSummary
 from mypath import Path
 warnings.filterwarnings('ignore')
-torch.cuda.set_device(1)
+torch.cuda.set_device(0)
+
 
 class Trainer(object):
     def __init__(self, args):
@@ -32,11 +34,12 @@ class Trainer(object):
 
         # Define Dataloader
         kwargs = {'num_workers': args.workers, 'pin_memory': True}
-        self.train_loader, self.val_loader, self.test_loader, self.nclass = make_data_loader(args, **kwargs)
+        self.train_loader, self.val_loader, self.test_loader, self.nclass = make_data_loader_nostream(args, **kwargs)
 
         # Define network
         # model = DeepLabv3_plus(nInputChannels=3, n_classes=self.nclass)
-        model = UNET(num_channel=3, num_class=self.nclass)
+        #model = DeepLabv3_plus(nInputChannels=3, n_classes=self.nclass)
+        model = MUNET(num_channel=3, num_class=self.nclass).cuda()
 
         # Define Optimizer
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum,
@@ -59,6 +62,7 @@ class Trainer(object):
 
         self.criterion = SegmentationLosses(n_classes=self.nclass, weight=weight, cuda=args.cuda).build_loss(
             mode=args.loss_type)
+
         self.model, self.optimizer = model, optimizer
 
         # Define lr scheduler
@@ -204,9 +208,9 @@ def main(lr):
                         help='whether to use SBD dataset (default: True)')
     parser.add_argument('--workers', type=int, default=4,
                         metavar='N', help='dataloader threads')
-    parser.add_argument('--base-size', type=int, default=416,
+    parser.add_argument('--base-size', type=int, default=512,
                         help='base image size')
-    parser.add_argument('--crop-size', type=int, default=416,
+    parser.add_argument('--crop-size', type=int, default=512,
                         help='crop image size')
     parser.add_argument('--sync-bn', type=bool, default=True,
                         help='whether to use sync bn (default: auto)')
@@ -242,7 +246,7 @@ def main(lr):
                         help='whether use nesterov (default: False)')
     # cuda, seed and logging
     parser.add_argument('--no-cuda', action='store_true', default=False, help='disables CUDA training')
-    parser.add_argument('--gpu-ids', type=str, default='1',
+    parser.add_argument('--gpu-ids', type=str, default='0',
                         help='use which gpu to train, must be a \
                         comma-separated list of integers only (default=0)')
     parser.add_argument('--seed', type=int, default=1, metavar='S',

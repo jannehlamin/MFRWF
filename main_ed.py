@@ -6,7 +6,7 @@ import warnings
 # Architecture of different dataset
 import torch
 from PIL import Image
-from models.nets.MUnet import MUNET
+from models.nets.Unet import UNET
 #from models.nets.ResUnet import ResUnet
 #from models.nets.ULeafNet import ULeafNet
 from models.backbone.extensions.sync_batchnorm import patch_replication_callback
@@ -14,13 +14,13 @@ from models.backbone.extensions.sync_batchnorm import patch_replication_callback
 #from models.nets.SegNet import SegNet
 from models.nets.Unet import UNET
 #from models.nets.deeplab_resnet import DeepLabv3_plus
-from dataloaders.data_util import make_data_loader
+from dataloaders.data_util import make_data_loader_nostream
 from dataloaders.data_util.utils import decode_segmap
 from loss_functions.loss_enc_dec import SegmentationLosses
 from loss_functions.metrics_test import Evaluator
 from torchvision import transforms
 import cv2
-torch.cuda.set_device(1)
+torch.cuda.set_device(0)
 warnings.filterwarnings('ignore')
 
 ORIGINAL_HEIGHT = 300 #966
@@ -45,7 +45,7 @@ class ModelWrapper:
 
         # Define Dataloader
         kwargs = {'num_workers': args.workers, 'pin_memory': True}
-        self.train_loader, self.val_loader, self.test_loader, self.nclass = make_data_loader(args, **kwargs)
+        self.train_loader, self.val_loader, self.test_loader, self.nclass = make_data_loader_nostream(args, **kwargs)
 
         self.criterion = SegmentationLosses(n_classes=self.nclass, cuda=args.cuda).build_loss(mode=args.loss_type)
         self.evaluator = Evaluator(self.nclass)
@@ -147,9 +147,9 @@ class ModelWrapper:
         print('MIOU: ', mIoU)
         print('FwIoU: ', FwIoU)
         
-        print('mAP@0.25: ', self.evaluator.mAP(0.25))
-        print('mAP@0.50: ', self.evaluator.mAP(0.50))
-        print('mAP@0.75: ', self.evaluator.mAP(0.75))
+        # print('mAP@0.25: ', self.evaluator.mAP(0.25))
+        # print('mAP@0.50: ', self.evaluator.mAP(0.50))
+        # print('mAP@0.75: ', self.evaluator.mAP(0.75))
         
         print('Precison : ', self.evaluator.precision_macro_average())
         print('Recall : ', self.evaluator.recall_macro_average())
@@ -181,7 +181,7 @@ def main():
     parser.add_argument('--sync-bn', type=bool, default=True, help='whether to use sync bn (default: auto)')
     parser.add_argument('--checkname', type=str, default=None, help='set the checkpoint name')
     parser.add_argument('--no-cuda', action='store_true', default=False, help='disables CUDA training')
-    parser.add_argument('--gpu-ids', type=str, default='1', help='use which gpu to train, must be a \
+    parser.add_argument('--gpu-ids', type=str, default='0', help='use which gpu to train, must be a \
                         comma-separated list of integers only (default=0)')
 
     args = parser.parse_args()
@@ -210,7 +210,7 @@ def main():
             elif args.model == 'segnet':
                 checkname = "experiments_enc_2/1_bsgnweeds_ori_segnetsugarbeet/original_unet-resnet/model_best.pth.tar"
             elif args.model == 'unet':
-                checkname = "experiments_enc_2/0_ubweeds_ori_unetsugarbeet/original_unet-resnet/model_best.pth.tar"
+                checkname = "experiment/unet/model_best.pth.tar" #"experiments_enc_2/0_ubweeds_ori_unetsugarbeet/original_unet-resnet/model_best.pth.tar"
             elif args.model == 'uleafnet':
                 checkname = "experiments_enc_2/0_bweeds_uleaf_selected/original_unet-resnet/model_best.pth.tar"
             elif args.model == 'munet':

@@ -2,9 +2,9 @@ import glob
 import os
 import torch.utils.data as data
 from PIL import ImageFile, Image, ImageOps
-from dataloaders.data_util.utils import decode_segmap,  get_weeds
+from dataloaders.data_util.utils import decode_segmap, get_weeds, get_rice_encode
 from mypath import Path
-from dataloaders.data_util import custom_transforms as tr
+from dataloaders.data_util import custom_transforms_no_stream as tr
 from torchvision import transforms
 import numpy as np
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -25,28 +25,17 @@ class RiceWeed(data.Dataset):
         self.images = [t for t in self.files]
         self.masks = [m.replace("images", "masks").replace("image_", "Label_").replace(".jpg", ".png") for m in self.images]
 
-    def mask_to_class(self, img, color_codes=get_weeds(), one_hot_encode=False):
+    def mask_to_class(self, img, color_codes=get_rice_encode(), one_hot_encode=False):
 
         if color_codes is None:
             color_codes = {val: i for i, val in enumerate(set(tuple(v) for m2d in img for v in m2d))}
 
         n_labels = len(color_codes)
         result = np.ndarray(shape=img.shape[:2], dtype=int)
-        result[:, :] = 255
-        class_id = 0
+        result[:, :] = -1
         for rgb, idx in color_codes.items():
-            # print("View->", rgb, idx, class_id)
-            if self.args.data_comp is not None:
-                if self.args.data_comp == 'crop' and idx==1:
-                    # print(" Lamin ", rgb, idx,self.args.data_comp)
-                    idx = 0
-                elif self.args.data_comp == 'weed' and idx == 2:
-                    # print(" Janneh ", rgb, idx,self.args.data_comp)
-                    idx = 0
-            # print("compare->", rgb, idx, class_id)
-            result[(img == rgb).all(2)] = idx
-            class_id = class_id + 1
-        # print("===============================================================")
+            # print(rgb, idx)  # (img == rgb).all(2)
+            result[np.where(img == rgb)] = idx
 
         if one_hot_encode:
             one_hot_labels = np.zeros((img.shape[0], img.shape[1], n_labels))

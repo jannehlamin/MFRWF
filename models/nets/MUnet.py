@@ -103,7 +103,7 @@ class MUNET(nn.Module):
         x = self.dec4(x, incat)
         x = self.out(x)
 
-        return x
+        return [x]
 
 def get_10x_lr_params_unet(model):
     """
@@ -119,9 +119,9 @@ def get_10x_lr_params_unet(model):
                 yield k
 
 
-model = MUNET(num_channel=3, num_class=3)
-inputs = t.randn(2, 3, 32, 32)
-result = model(inputs)
-print(result.shape)
+# model = MUNET(num_channel=3, num_class=3)
+# inputs = t.randn(2, 3, 32, 32)
+# result = model(inputs)
+# print(result.shape)
 # summary(model)
 

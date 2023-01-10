@@ -3,8 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchinfo import summary
 
-from models.dual_nets.utils import MaskEdge
-from models.nets.utils_nostream import IntraScaled, AMscaling, SFCM, EGLF, PPM
+from models.nets.utils_nostream import AMscaling
+
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -18,10 +18,10 @@ class BasicBlock(nn.Module):
         self.bn2 = nn.BatchNorm2d(planes)
 
         self.shortcut = nn.Sequential()
-        if stride != 1 or in_planes != self.expansion*planes:
+        if stride != 1 or in_planes != self.expansion * planes:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion*planes),
+                nn.Conv2d(in_planes, self.expansion * planes, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(self.expansion * planes),
                 #
             )
 
@@ -31,6 +31,7 @@ class BasicBlock(nn.Module):
         out += self.shortcut(x)
         out = F.relu(out)
         return out
+
 
 class ResNet_AMScale(nn.Module):
     def __init__(self, block, num_blocks, mstream=True, std_out=32):
@@ -54,11 +55,11 @@ class ResNet_AMScale(nn.Module):
 
         self.cnn = nn.ModuleList([self.layer1, self.layer2, self.layer3, self.layer4])
         self.skip_weis = nn.ModuleList([self.skip_wei1, self.skip_wei2, self.skip_wei3, self.skip_wei4])
-        self.last = nn.Conv2d(128*block.expansion, 64, kernel_size=1, stride=1, bias=False)
+        self.last = nn.Conv2d(128 * block.expansion, 64, kernel_size=1, stride=1, bias=False)
         self.bn1l = nn.BatchNorm2d(64)
 
     def _make_layer(self, block, planes, num_blocks, stride):
-        strides = [stride] + [1]*(num_blocks-1)
+        strides = [stride] + [1] * (num_blocks - 1)
         layers = []
         for stride in strides:
             layers.append(block(self.in_planes, planes, stride))
@@ -80,6 +81,7 @@ class ResNet_AMScale(nn.Module):
         out = F.relu(self.bn1l(self.last(out)))
         return out_layer4, out, weigted_fusion
 
+
 class LBResNet(nn.Module):
     def __init__(self, block, num_blocks):
         super(LBResNet, self, ).__init__()
@@ -96,11 +98,11 @@ class LBResNet(nn.Module):
         self.layer4 = self._make_layer(block, 128, num_blocks[3], stride=2)
 
         self.cnn = nn.ModuleList([self.layer1, self.layer2, self.layer3, self.layer4])
-        self.last = nn.Conv2d(128*block.expansion, 64, kernel_size=1, stride=1, bias=False)
+        self.last = nn.Conv2d(128 * block.expansion, 64, kernel_size=1, stride=1, bias=False)
         self.bn1l = nn.BatchNorm2d(64)
 
     def _make_layer(self, block, planes, num_blocks, stride):
-        strides = [stride] + [1]*(num_blocks-1)
+        strides = [stride] + [1] * (num_blocks - 1)
         layers = []
         for stride in strides:
             layers.append(block(self.in_planes, planes, stride))
@@ -118,8 +120,8 @@ class LBResNet(nn.Module):
         out = F.relu(self.bn1l(self.last(out)))
         out = F.interpolate(out, x.shape[2:], mode='bilinear', align_corners=True)
 
-
         return out
+
 
 def LWBaseline():
     return LBResNet(BasicBlock, [3, 4, 6, 3])
@@ -127,10 +129,8 @@ def LWBaseline():
 
 def test():
     net = LWBaseline().cuda()
-    out = net(torch.randn(1, 3, 32, 32).cuda())
+    # out = net(torch.randn(1, 3, 32, 32).cuda())
     summary(net)
-    print(out.shape)
+
 
 # test()
-
-

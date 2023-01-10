@@ -5,7 +5,9 @@ from .utils_nostream import DFP, DecoderFF, MR2N_GFF
 from ..backbone.lighweigh_bb_nostream import LResNet34FRWM, PLResNet34FRWM, \
     PdLResNet34FRWM
 from ..dual_nets.utils import E_GFF, ConvWFusion
+
 ALIGN_CORNERS = True
+
 
 class MLevel_Funsion(nn.Module):
     def __init__(self, channel=32):
@@ -130,6 +132,7 @@ class MLevel_MR2N(nn.Module):
 
         return out
 
+
 class PMLevel_MR2N(nn.Module):
     def __init__(self, channel=256):
         super(PMLevel_MR2N, self).__init__()
@@ -153,13 +156,15 @@ class PMLevel_MR2N(nn.Module):
             r_layers.pop(i)
             # print(len(r_layers))
             gff_out = self.Mr2N_GFF[i](layer_out, r_layers)
-            gff_out = self.relu(self.bn(self.conv(F.interpolate(gff_out, x.shape[2:], mode='bilinear', align_corners=True))))
+            gff_out = self.relu(
+                self.bn(self.conv(F.interpolate(gff_out, x.shape[2:], mode='bilinear', align_corners=True))))
             MR2N_GFF.append(gff_out)  # stack of the all fully gated fusion
             r_layers = layers.copy()
             i = i + 1
 
         out = torch.cat(MR2N_GFF, dim=1)
         return out
+
 
 class OHybridCR(nn.Module):
     def __init__(self, args, num_classes, backbone="hrnet", isup_decoder=False):
@@ -169,11 +174,11 @@ class OHybridCR(nn.Module):
         # Backbones
         self.backbone = backbone
         if backbone == "ours_l34rw_partial_weight":
-            self.resnet = PLResNet34FRWM()
+            self.resnet = PLResNet34FRWM()  # PLResNet34FRWM
             std_out = 32
-        elif backbone == "ours_l34rw_partial_cwffd":
-            self.resnet = PdLResNet34FRWM()
-            std_out = 32
+        # elif backbone == "ours_l34rw_partial_cwffd":
+        #     self.resnet = PdLResNet34FRWM()  # PdLResNet34FRWM
+        #     std_out = 32
         elif backbone == "ours_l34rw_partial_decoder":
             self.resnet = LResNet34FRWM()
             std_out = 32
@@ -199,7 +204,7 @@ class OHybridCR(nn.Module):
                 nn.Conv2d(128, 32, kernel_size=1, stride=1, padding=0),
                 nn.BatchNorm2d(32),
                 nn.ReLU(inplace=True),
-                )
+            )
         elif self.backbone == "ours_l34rw_partial_decoder":
             self.cls_head = nn.Conv2d(128, num_classes, kernel_size=1, stride=1, padding=0, bias=True)
             self.ctrancnn = PMLevel_MR2N(channel=std_out)
@@ -207,7 +212,7 @@ class OHybridCR(nn.Module):
             self.ctrancnn = MLevel_MR2N(channel=std_out)  #
 
         feat_out = 128
-        if self.backbone == "ours_l34rw_partial_weight" or self.backbone == "ours_l34rw_fully" or self.backbone == "baseline"\
+        if self.backbone == "ours_l34rw_partial_weight" or self.backbone == "ours_l34rw_fully" or self.backbone == "baseline" \
                 or self.backbone == "ours_l34rw_partial_decoder" or self.backbone == "ours_l34rw_partial_cwffd":
             feat_out = 64
 
@@ -248,5 +253,3 @@ class OHybridCR(nn.Module):
         out_aux_seg.append(out_aux)
         out_aux_seg.append(out)
         return out_aux_seg
-
-

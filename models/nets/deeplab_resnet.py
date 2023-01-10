@@ -4,9 +4,9 @@ import torch.nn as  nn
 import torch.nn.functional as F
 from torchinfo import summary
 
-from Models.extensions.sync_batchnorm import SynchronizedBatchNorm2d
+# from Models.extensions.sync_batchnorm import SynchronizedBatchNorm2d
 
-BatchNorm2d = SynchronizedBatchNorm2d
+BatchNorm2d = nn.BatchNorm2d
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -179,7 +179,7 @@ class DeepLabv3_plus(nn.Module):
         super(DeepLabv3_plus, self).__init__()
 
         # Atrous Conv
-        self.resnet_features = ResNet101(nInputChannels)
+        self.resnet_features = ResNet50(nInputChannels)
 
         # ASPP
         if os == 16:

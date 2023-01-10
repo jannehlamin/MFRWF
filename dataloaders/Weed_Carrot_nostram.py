@@ -1,10 +1,10 @@
 import os
 import torch.utils.data as data
-
 from dataloaders.data_util.utils import decode_segmap, get_weeds, encode_segmap
 from mypath import Path
 from dataloaders.data_util import custom_transforms_no_stream as tr
 from torchvision import transforms
+# os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
 import numpy as np
 from PIL import ImageFile, Image
 ImageFile.LOAD_TRUNCATED_IMAGES = True

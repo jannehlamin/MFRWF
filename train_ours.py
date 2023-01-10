@@ -3,10 +3,10 @@ import os
 import numpy as np
 from tqdm import tqdm
 import torch
-from dataloaders.data_util import make_data_loader
+from dataloaders.data_util import make_data_loader_nostream
 from models.backbone.extensions.sync_batchnorm import patch_replication_callback
-from models.backbone.utils_1.utils import FullModel
-from models.dual_nets.hybrid_fully_dual import OHybridCR
+from models.backbone.utils_1.utils import FullModel_nostream
+from models.nets.hybrid_baseline import OHybridCR
 from mypath import Path
 from datetime import datetime
 # -------------------------------------------------------------------
@@ -16,10 +16,7 @@ from loss_functions.saver import Saver
 from loss_functions.summaries import TensorboardSummary
 from loss_functions.lr_scheduler import LR_Scheduler
 from loss_functions.metrics import Evaluator
-
 torch.cuda.set_device(0)
-EXPECTED_CHANNEL = 64
-
 
 class Trainer(object):
     def __init__(self, args):
@@ -34,7 +31,7 @@ class Trainer(object):
 
         # Define Dataloader
         kwargs = {'num_workers': args.workers, 'pin_memory': True}
-        self.train_loader, self.val_loader, self.test_loader, self.nclass = make_data_loader(args, **kwargs)
+        self.train_loader, self.val_loader, self.test_loader, self.nclass = make_data_loader_nostream(args, **kwargs)
 
         distributed = args.local_rank >= 0
         if distributed:
@@ -44,7 +41,7 @@ class Trainer(object):
                 backend="nccl", init_method="env://",
             )
 
-        model = OHybridCR(EXPECTED_CHANNEL, self.nclass, backbone=args.backbone).cuda()
+        model = OHybridCR(args, self.nclass, backbone=args.backbone).cuda()
         # optimizer
         params_dict = dict(model.named_parameters())
         params = [{'params': list(params_dict.values()), 'lr': args.lr}]
@@ -68,7 +65,7 @@ class Trainer(object):
         self.criterion = SegmentationLosses(n_classes=self.nclass, weight=weight, cuda=args.cuda).build_loss(
             mode=args.loss_type)
         # if args.backbone == "hrnet":
-        model = FullModel(model, self.criterion).cuda()
+        model = FullModel_nostream(model, self.criterion).cuda()
         from torchinfo import summary
         summary(model)
         self.model, self.optimizer = model, optimizer
@@ -111,20 +108,21 @@ class Trainer(object):
         num_img_tr = len(self.train_loader)
 
         for i, sample in enumerate(tbar):
-            image, target, edge = sample['image'], sample['label'], sample['edge']
+            image, target = sample['image'], sample['label']
             if self.args.cuda:
                 image, target = image.cuda(), target.long().cuda()
 
             self.scheduler(self.optimizer, i, epoch, self.best_pred)
             self.optimizer.zero_grad()
 
-            loss, output = self.model(image, target, edge)
+            loss, output = self.model(image, target)
+
             loss = loss.mean()
             loss.backward()
             self.optimizer.step()
             train_loss += loss.item()
             # print(target.shape, output[1].shape)
-            self.evaluator.add_batch(target.detach().cpu().numpy(), output[1])
+            self.evaluator.add_batch(target.detach().cpu().numpy(), output[0])
 
             tbar.set_description('Train loss: %.3f' % (train_loss / (i + 1)))
             self.writer.add_scalar('train/total_loss_iter', loss.item(), i + num_img_tr * epoch)
@@ -162,7 +160,7 @@ class Trainer(object):
             result = []
             for i in range(0, len(data)):
                 result.append(str(data[i]["acc"]) + str(",") + str(data[i]["acc_clas"]) + str(",") + str(data[i]["iou"]) + str(",") +
-                              str(data[i]["miou"])+ str(",") + str(data[i]["fwiou"]) +str(",") + str(data[i]["prec"]) +
+                              str(data[i]["miou"]) + str(",") + str(data[i]["fwiou"]) +str(",") + str(data[i]["prec"]) +
                               str(",") + str(data[i]["rec"]) + str(",") + str(data[i]["f1sco"]))
 
             metric.writelines("% s\n" % d for d in result)
@@ -174,18 +172,18 @@ class Trainer(object):
         tbar = tqdm(self.val_loader, desc='\r')
         test_loss = 0.0
         for i, sample in enumerate(tbar):
-            image, target, edge = sample['image'], sample['label'], sample['edge']
+            image, target = sample['image'], sample['label']
             if self.args.cuda:
-                image, target, edge = image.cuda(), target.long().cuda(), edge.long().cuda()
+                image, target = image.cuda(), target.long().cuda()
             with torch.no_grad():
-                loss, output = self.model(image, target, edge)
+                loss, output = self.model(image, target)
 
             loss = loss.mean()
             test_loss += loss.item()
 
             tbar.set_description('Test loss: %.3f' % (test_loss / (i + 1)))
             target = target.cpu().numpy()
-            self.evaluator.add_batch(target, output[1])
+            self.evaluator.add_batch(target, output[0])
 
         # Fast test during the training
         # print(self.evaluator.view_confusion_matrics())
@@ -228,26 +226,23 @@ class Trainer(object):
 # python train.py --cfg=test.yaml --backbone='regnet' --epoch=1
 def main(lr):
     parser = argparse.ArgumentParser(description='Train segmentation network')
-    parser.add_argument('--backbone', type=str, default='l1', choices=['l1', 'l2', 'r18', 'r34', 'r50'],
-                        help='Backone name (default: hrnet)')
-    parser.add_argument('--use-edge', default=True, help='whether to used edges for enhancement (default: True)')
-    parser.add_argument('--edge', type=str, default='gray',
-                        choices=['canny', 'laplician', 'sobel', 'ndi', 'exg', 'exr', 'exgr', 'gray', 'com1', 'veg'],
-                        help='edge (default: mask)')
+    parser.add_argument('--backbone', type=str, default='ours_l34rw_fully', choices=['baseline','ours_l34rw_partial_weight', 'ours_l34rw_fully',
+                'ours_l34rw_partial_cwffd', 'ours_r34rw_fully', 'ours_r50rw_fully', 'ours_l34rw_partial_decoder'], help='Backone name (default: hrnet)')
     parser.add_argument('--local_rank', type=int, default=-1)
+    parser.add_argument('--mstream', type=str, default='yes', choices=['yes', 'no'], help='loss func type (default: yes )'),
+    parser.add_argument('--r2n', type=str, default='no', choices=['yes', 'no'], help='loss func type (default: ce)')
     parser.add_argument('opts', help='Modify config options using the command-line', default=None,
                         nargs=argparse.REMAINDER)
     # ----------------------------------Dataset and the loss function--------------------------------------------------
-    parser.add_argument('--dataset', type=str, default='cweeds',
-                        choices=['cweeds', 'bweeds', 'rweeds'],
+    parser.add_argument('--dataset', type=str, default='cweeds', choices=['cweeds', 'bweeds', 'rweeds'],
                         help='dataset name (default: cweeds)')
     parser.add_argument('--use-sbd', action='store_true', default=False,
                         help='whether to use SBD dataset (default: True)')
     parser.add_argument('--workers', type=int, default=4,
                         metavar='N', help='dataloader threads')
-    parser.add_argument('--base-size', type=int, default=512,
+    parser.add_argument('--base-size', type=int, default=64,
                         help='base image size')
-    parser.add_argument('--crop-size', type=int, default=512,
+    parser.add_argument('--crop-size', type=int, default=64,
                         help='crop image size')
     parser.add_argument('--sync-bn', type=bool, default=True,
                         help='whether to use sync bn (default: auto)')
@@ -359,7 +354,7 @@ def main(lr):
         if not trainer.args.no_val and epoch % args.eval_interval == (args.eval_interval - 1):
             v_loss, v_metric = trainer.validation(epoch)
             val.append(v_metric)
-
+    # train and val metrics
     trainer.log_experimental_Data(str(args.dataset)+str(datetime.now().time())+"_train.txt", train)
     trainer.log_experimental_Data(str(args.dataset)+str(datetime.now().time())+"_val.txt", val)
 
@@ -376,4 +371,5 @@ if __name__ == "__main__":
         directory = ROOT_DIR + "/experiments/"
         print("End......", lrs[i])
         print("Processing the best model for lr=", i, ".............")
-        os.rename(directory + "cweeds", directory + str(i) + "_cweeds_ours_dual")
+        os.rename(directory + "rweeds", directory + str(i) + "test_ours")
+

@@ -5,17 +5,18 @@ from tqdm import tqdm
 import warnings
 # Architecture of different dataset
 from models.backbone.extensions.sync_batchnorm import patch_replication_callback
-from models.dual_nets.hybrid_fully_dual import OHybridCR
-from dataloaders.data_util import make_data_loader
+from dataloaders.data_util import make_data_loader_nostream
 from dataloaders.data_util.utils import decode_segmap
 import torch
 from PIL import Image
-from models.backbone.utils_1.utils import FullModel
+from models.backbone.utils_1.utils import FullModel_nostream
+from models.nets.hybrid_baseline import OHybridCR
 from loss_functions.loss import SegmentationLosses
 from loss_functions.metrics_test import Evaluator
 from torchvision import transforms
 import cv2
 import torch.backends.cudnn as cudnn
+
 torch.cuda.set_device(0)
 
 warnings.filterwarnings('ignore')
@@ -25,6 +26,7 @@ ORIGINAL_HEIGHT = 512  # 966
 ORIGINAL_WIDTH = 512  # 1296
 MODEL_HEIGHT = 512
 MODEL_WIDTH = 512
+
 
 class ModelWrapper:
 
@@ -41,7 +43,7 @@ class ModelWrapper:
         self.nclass = num_class
         # Define Dataloader
         kwargs = {'num_workers': args.workers, 'pin_memory': True}
-        self.train_loader, self.val_loader, self.test_loader, self.nclass = make_data_loader(args, **kwargs)
+        self.train_loader, self.val_loader, self.test_loader, self.nclass = make_data_loader_nostream(args, **kwargs)
 
         self.criterion = SegmentationLosses(n_classes=self.nclass, cuda=args.cuda).build_loss(mode=args.loss_type)
         self.model = self.load_model(self.args, self.criterion, self.nclass)
@@ -58,10 +60,10 @@ class ModelWrapper:
             torch.distributed.init_process_group(
                 backend="nccl", init_method="env://",
             )
-        model = OHybridCR(EXPECTED_CHANNEL, nclass, backbone=args.backbone)
-        # model = HighResolutionNet(config)
+
+        model = OHybridCR(args, nclass, backbone=args.backbone).cuda()  # model = HighResolutionNet(config)
         # model = get_seg_model(config)
-        model = FullModel(model, criterion)
+        model = FullModel_nostream(model, criterion)
 
         if args.cuda:
             model = torch.nn.DataParallel(model, device_ids=args.gpu_ids)
@@ -91,13 +93,13 @@ class ModelWrapper:
         timings = np.zeros((len(tbar), 1))
         # GPU-WARM-UP
         for i, sample in enumerate(tbar):
-            image, target, edge = sample['image'], sample['label'], sample['edge']
+            image, target = sample['image'], sample['label']
             if self.args.cuda:
-                image, target, edge = image.cuda(), target.long().cuda(), edge.long().cuda()
+                image, target = image.cuda(), target.long().cuda()
 
             with torch.no_grad():
                 starter.record()  # start record
-                loss, output = self.model(image, target, edge)
+                loss, output = self.model(image, target)
                 ender.record()  # ending the record
 
                 # WAIT FOR GPU SYNC
@@ -108,7 +110,7 @@ class ModelWrapper:
 
             tbar.set_description('Test loss: %.3f' % (test_loss / (i + 1)))
             # print(output[1].shape)
-            pred = output[1].cpu().numpy()
+            pred = output[0].cpu().numpy()
             target = target.cpu().numpy()
             pred = np.argmax(pred, axis=1)
             pred_1 = pred.squeeze(0)
@@ -133,36 +135,34 @@ class ModelWrapper:
         mIoU = self.evaluator.Mean_Intersection_over_Union()
         FwIoU = self.evaluator.Frequency_Weighted_Intersection_over_Union()
 
-        print("*"*15, " Our method on ", self.args.backbone, " backbone using ", ""
-             if self.args.dataset=="cweeds" " Carrot weeds " else " sugar beets ", "datsets", " *"*15)
+        print("*" * 15, " Our method on ", self.args.backbone, " backbone using ", ""
+        if self.args.dataset == "cweeds" " Carrot weeds " else " sugar beets ", "datsets", " *" * 15)
 
         print('crops IOU: ', iou[1])
         print('weeds IOU: ', iou[2])
         print('MIOU: ', mIoU)
-        
-        
+
         print('FwIoU: ', FwIoU)
         print('Precison : ', self.evaluator.precision_macro_average())
         print('Recall : ', self.evaluator.recall_macro_average())
         print('F1-score: ', self.evaluator.getF1Score())
         mean_syn = np.sum(timings) / len(tbar)
-        print('Time --> Mean : ', mean_syn, " milliseconds, seconds : ", (mean_syn/1000))
-        print("*"*100)
+        print('Time --> Mean : ', mean_syn, " milliseconds, seconds : ", (mean_syn / 1000))
+        print("*" * 100)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Train segmentation network')
-    parser.add_argument('--backbone', type=str, default='l1',
-                        choices=['l1', 'l2'], help='Backone name (default: hrnet)'),
-    parser.add_argument('--use-edge',  default=True,
-                        help='whether to used edges for enhancement (default: True)'),
-    parser.add_argument('--edge', type=str, default='gray',choices=['canny', 'laplician', 'sobel', 'ndi', 'exg', 'exr', 'exgr',  'gray', 'com1', 'veg'], help='edge (default: mask)'),
+    parser.add_argument('--backbone', type=str, default='baseline',
+                        choices=['ours_l34rw_partial_weight', 'baseline',
+                                 'ours_l34rw_partial_decoder', 'ours_l34rw_fully',
+                                 ], help='Backone name (default: hrnet)')
     parser.add_argument("--local_rank", type=int, default=-1),
     parser.add_argument('opts', help="Modify config options using the command-line",
                         default=None, nargs=argparse.REMAINDER)
     # ----------------------------------Dataset and the loss function--------------------------------------------------
     parser.add_argument('--dataset', type=str, default='cweeds',
-                        choices=['cweeds','rweeds', 'bweeds'],
+                        choices=['cweeds', 'rweeds', 'bweeds'],
                         help='dataset name (default: cweeds)')
 
     parser.add_argument('--workers', type=int, default=1,
@@ -200,25 +200,13 @@ def main():
     args.crop_size = 512
 
     if args.checkname is None:
-        checkname = ""
+
         if args.dataset == "bweeds":
-            if args.backbone == "hrnet":
-                checkname = "experiments/0_bRnewweeds_oursresult_1/ours_on_hrnet/model_best.pth.tar"
-            elif args.backbone == "l1":
-                checkname = "experiments/1_bweeds_ours/deeplab-l1/model_best.pth.tar"
-            elif args.backbone == "l2":
-                checkname = "experiments/0_bweeds_ours/deeplab-l2/model_best.pth.tar"
-            elif args.backbone == "regnet":
-                checkname = "experiment_ours/bweeds_regnet_accepted.pth.tar"
+            checkname = "experiments/results/bweeds/baseline/bweeds_base_model_best.pth.tar"
+        elif args.dataset == "cweeds":
+            checkname = "experiments/results/cwd/baseline/cweeds_baseline_model_best.pth.tar"
         else:
-            if args.backbone == "hrnet":
-                checkname = "experiments/0_cRnewweeds_oursresult21/ours_on_hrnet/model_best.pth.tar"
-            elif args.backbone == "l1":
-                checkname = "experiments/1_cweeds_ours/deeplab-l1/model_best.pth.tar"
-            elif args.backbone == "l2":
-                checkname = "experiments/2_cweeds_ours_dual/deeplab-l2/model_best.pth.tar"
-            elif args.backbone == "regnet":
-                checkname = "experiment_ours/cweeds_reg_accepted.pth.tar"
+            checkname = "experiments/results/rice/baseline/model_best.pth.tar"
 
         args.checkname = checkname
 

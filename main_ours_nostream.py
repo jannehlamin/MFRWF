@@ -24,8 +24,8 @@ EXPECTED_CHANNEL = 256
 
 ORIGINAL_HEIGHT = 966  # 966
 ORIGINAL_WIDTH = 1296  # 1296
-MODEL_HEIGHT = 966
-MODEL_WIDTH = 1296
+MODEL_HEIGHT = 512
+MODEL_WIDTH = 512
 
 
 class ModelWrapper:
@@ -153,8 +153,8 @@ class ModelWrapper:
 
 def main():
     parser = argparse.ArgumentParser(description='Train segmentation network')
-    parser.add_argument('--backbone', type=str, default='ours_l34rw_fully',
-                        choices=['ours_l34rw_partial_weight', 'ours_l34rw_partial_cwffd',
+    parser.add_argument('--backbone', type=str, default='baseline',
+                        choices=['ours_l34rw_partial_weight', 'baseline',
                                  'ours_l34rw_partial_decoder', 'ours_l34rw_fully',
                                  ], help='Backone name (default: hrnet)')
     parser.add_argument("--local_rank", type=int, default=-1),
@@ -203,22 +203,30 @@ def main():
         checkname = ""
         if args.dataset == "bweeds":
             if args.backbone == "ours_l34rw_partial_weight":
-                checkname = "experiments/result/2_bweeds_ours_cwff_sfcm_ours_l34rw_partial_weight/deeplab-ours_l34rw_partial_weight/model_best.pth.tar"
-            elif args.backbone == "ours_l34rw_partial_cwffd":
-                checkname = "experiments/result/1_bweeds_ours_cwff_sfcm_ours_l34rw_fully_cwffd/deeplab-ours_l34rw_partial_cwffd/model_best.pth.tar"
+                checkname = "experiments/results/bweeds/pweight/1model_best.pth.tar"
             elif args.backbone == "ours_l34rw_partial_decoder":
-                checkname = "experiments/result/1_bweeds_ours_cwff_sfcm_ours_l34rw_partial_decoder/deeplab-ours_l34rw_partial_decoder/model_best.pth.tar"
+                checkname = "experiments/results/bweeds/pdecoder/model_best.pth.tar"
             elif args.backbone == "ours_l34rw_fully":
-                checkname = "experiments/result/1_bweeds_ours_cwff_sfcm_ours_l34rw_fully/deeplab-ours_l34rw_fully/model_best.pth.tar"
+                checkname = "experiments/results/bweeds/fully/bweeds_fully_model_best.pth.tar"
+
+        elif args.dataset == "cweeds":
+            if args.backbone == "ours_l34rw_partial_weight":
+                checkname = "experiments/results/cwd/pweight/model_best.pth.tar"
+            elif args.backbone == "ours_l34rw_partial_cwffd":
+                checkname = "experiments/results/cwd/deeplab-ours_l34rw_partial_cwffd/model_best.pth.tar"
+            elif args.backbone == "ours_l34rw_partial_decoder":
+                checkname = "experiments/results/cwd/pdecoder/model_best.pth.tar"
+            elif args.backbone == "ours_l34rw_fully":
+                checkname = "experiments/results/cwd/fully/cweeds_fully_model_best.pth.tar"
         else:
             if args.backbone == "ours_l34rw_partial_weight":
-                checkname = "experiments/result/2_cweeds_ours_cwff_sfcm_ours_l34rw_partial_weight/deeplab-ours_l34rw_partial_weight/model_best.pth.tar"
+                checkname = "experiments/results/rice/pweight/model_best.pth.tar"
             elif args.backbone == "ours_l34rw_partial_cwffd":
-                checkname = "experiments/result/1_cweeds_ours_cwff_sfcm_ours_l34rw_partial_cwffd/deeplab-ours_l34rw_partial_cwffd/model_best.pth.tar"
+                checkname = "experiments/result/rice/deeplab-ours_l34rw_partial_cwffd/model_best.pth.tar"
             elif args.backbone == "ours_l34rw_partial_decoder":
-                checkname = "experiments/result/1_cweeds_ours_cwff_sfcm_ours_l34rw_partial_decoder/deeplab-ours_l34rw_partial_decoder/model_best.pth.tar"
+                checkname = "experiments/results/rice/pdecoder/model_best.pth.tar"
             elif args.backbone == "ours_l34rw_fully":
-                checkname = "experiments/result/2_cweeds_ours_cwff_sfcm_ours_l34rw_fully/deeplab-ours_l34rw_fully/model_best.pth.tar"
+                checkname = "experiments/results/rice/fully/rweeds_fully_model_best.pth.tar"
 
         args.checkname = checkname
 
