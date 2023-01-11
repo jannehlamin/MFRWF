@@ -26,3 +26,44 @@ It was trained and tested using:
 </p>
 
 <h3> Running commands for the Test </h3>
+<p>
+The experiment can be tested using the following commands, where the dataset parameter can be changed for the different datasets
+ <ul>
+   <li> bweeds : Bonirob </li>
+   <li>  cweeds : CWFID </li>
+    <li> rweeds : Rice seedlings</li>
+ </ul>
+</p>
+
+<p>
+ <ul>
+   <li> Baseline (bweeds, cweeds, rweeds) </li>
+   <li> cmd: python main_ours.py --dataset='bweeds' --backbone='baseline'  </li>
+ </ul>
+ 
+ <ul>
+   <li> MFF (bweeds, cweeds, rweeds) </li>
+    <li> cmd:  python main_ours_nostream.py --dataset='bweeds' --backbone='ours_l34rw_partial_weight' </li>
+ </ul>
+ <ul>
+   <li> MFRWF (bweeds, cweeds, rweeds) </li>
+   <li> cmd:  python main_ours_nostream.py --dataset='bweeds' --backbone='ours_l34rw_partial_decoder' </li>
+ </ul>
+ <ul>
+   <li> MFRWF + CWF (bweeds, cweeds, rweeds) </li>
+ <li> cmd:  python main_ours_nostream.py --dataset='bweeds' --backbone='ours_l34rw_fully' </li>
+ </ul>
+</p>
+
+<h3>Visulaization of the Results</h3>
+ <ul>
+   <li> Bonirob:
+        <img src="result_img/bonirob.png" alt="bonirob datset" />
+   </li>
+   <li> CWFID:
+        <img src="result_img/cwfid.png" alt="CWFID datset" />
+   </li>
+    <li> Rice Seedlings:
+        <img src="result_img/rs.jpg" alt="Rice seedlings datset" />
+   </li>
+ </ul>
