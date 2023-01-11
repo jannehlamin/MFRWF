@@ -28,30 +28,26 @@ It was trained and tested using:
 <h3> Running commands for the Test </h3>
 <p>
 The experiment can be tested using the following commands, where the dataset parameter can be changed for the different datasets
- <ul>
-   <li> bweeds : Bonirob </li>
-   <li>  cweeds : CWFID </li>
-    <li> rweeds : Rice seedlings</li>
- </ul>
+ bweeds : Bonirob , cweeds : CWFID, rweeds : Rice seedlings 
 </p>
 
 <p>
  <ul>
-   <li> Baseline (bweeds, cweeds, rweeds) </li>
-   <li> cmd: python main_ours.py --dataset='bweeds' --backbone='baseline'  </li>
+  <li> <b>Baseline</b> (bweeds, cweeds, rweeds) </li>
+   <li> cmd: <i>python main_ours.py --dataset='bweeds' --backbone='baseline' </i> </li>
  </ul>
  
  <ul>
-   <li> MFF (bweeds, cweeds, rweeds) </li>
-    <li> cmd:  python main_ours_nostream.py --dataset='bweeds' --backbone='ours_l34rw_partial_weight' </li>
+   <li> <b>MFF</b> (bweeds, cweeds, rweeds) </li>
+    <li> cmd:  <i>python main_ours_nostream.py --dataset='bweeds' --backbone='ours_l34rw_partial_weight' </i></li>
  </ul>
  <ul>
-   <li> MFRWF (bweeds, cweeds, rweeds) </li>
-   <li> cmd:  python main_ours_nostream.py --dataset='bweeds' --backbone='ours_l34rw_partial_decoder' </li>
+   <li> <b>MFRWF</b> (bweeds, cweeds, rweeds) </li>
+   <li> cmd:  <i>python main_ours_nostream.py --dataset='bweeds' --backbone='ours_l34rw_partial_decoder' </i></li>
  </ul>
  <ul>
-   <li> MFRWF + CWF (bweeds, cweeds, rweeds) </li>
- <li> cmd:  python main_ours_nostream.py --dataset='bweeds' --backbone='ours_l34rw_fully' </li>
+ <li> <b>MFRWF + CWF</b> (bweeds, cweeds, rweeds) </li>
+ <li> cmd:  <i>python main_ours_nostream.py --dataset='bweeds' --backbone='ours_l34rw_fully' </i></li>
  </ul>
 </p>
 
