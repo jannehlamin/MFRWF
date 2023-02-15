@@ -144,7 +144,7 @@ def encode_segmap(mask):
 #     return color
 
 def get_rice_encode():
-    return {2: 0, 1: 1, 3: 2, 0: 3}
+    return {2: 0, 1: 1, 3: 2, 0: 0} # change
 
 
 # def get_rice_encode1():
